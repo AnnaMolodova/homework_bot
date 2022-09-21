@@ -127,9 +127,7 @@ def check_tokens():
 def main():
     """Основная логика работы бота."""
     if not check_tokens():
-        logger.critical(
-            f'Отсутствуют критически важные переменные окружения'
-        )
+        logger.critical('Отсутствуют важные переменные окружения')
         exit()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
