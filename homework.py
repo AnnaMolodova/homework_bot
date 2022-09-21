@@ -13,7 +13,7 @@ logging.basicConfig(
     filename='main.log',
     filemode='w',
     format='%(asctime)s,%(levelname)s, %(message)s, %(funcName)s, %(lineno)s'
-    )
+)
 
 load_dotenv()
 
@@ -88,7 +88,9 @@ def check_response(response):
 
 def parse_status(homework):
     """Извлекает из информации о конкретной
-       домашней работе статус этой работы.
+
+    домашней работе статус этой работы.
+
     """
     homework_name = homework.get('homework_name')
     homework_status = homework.get('status')
