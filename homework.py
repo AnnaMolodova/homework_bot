@@ -3,9 +3,14 @@ import os
 import time
 
 import exceptions
+import endpoint
 import requests
 import telegram
+import json
+
 from dotenv import load_dotenv
+
+from http import HTTPStatus
 
 
 logging.basicConfig(
@@ -26,11 +31,10 @@ PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
-RETRY_TIME = 600
-ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
+TELEGRAM_RETRY_TIME = 600
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
-HOMEWORK_STATUSES = {
+HOMEWORK_VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
     'reviewing': 'Работа взята на проверку ревьюером.',
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
@@ -41,7 +45,7 @@ def send_message(bot, message):
     """Отправка сообщения в Telegram чат."""
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
-        logger.info('Сообщение успешно отправлено')
+        logger.info('Сообщение успешно отправлено в Telegram')
     except Exception:
         logger.error(f'Сообщение не отправилось: {message}')
         raise exceptions.SendMessageExeptinon
@@ -53,20 +57,24 @@ def get_api_answer(current_timestamp):
     params = {'from_date': timestamp}
     try:
         homework_status = requests.get(
-            ENDPOINT, headers=HEADERS, params=params
+            endpoint.ENDPOINT, headers=HEADERS, params=params
         )
+        if homework_status.status_code != HTTPStatus.OK:
+            message_error = (
+                f' ENDPOINT недоступен.'
+                f' Ошибка: {homework_status.status_code}'
+            )
+            logger.error(message_error)
+            raise exceptions.NoAccessToApiExeption(message_error)
+        return homework_status.json()
+    except json.JSONDecodeError:
+        message_json = 'Ответ не преобразовался в JSON'
+        logger.error(message_json)
+        raise json.JSONDecodeError
     except Exception:
         message = 'Нет доступа к API'
         logger.error(message)
         raise exceptions.NoAccessToApiExeption(message)
-    if homework_status.status_code != 200:
-        message_error = (
-            f' ENDPOINT недоступен.'
-            f' Ошибка: {homework_status.status_code}'
-        )
-        logger.error(message_error)
-        raise exceptions.NoAccessToApiExeption(message_error)
-    return homework_status.json()
 
 
 def check_response(response):
@@ -91,11 +99,11 @@ def parse_status(homework):
     homework_name = homework.get('homework_name')
     homework_status = homework.get('status')
 
-    if homework_status not in HOMEWORK_STATUSES:
+    if homework_status not in HOMEWORK_VERDICTS:
         message = 'Статус работы не определен.'
         logger.error(message)
         raise KeyError(message)
-    verdict = HOMEWORK_STATUSES[homework_status]
+    verdict = HOMEWORK_VERDICTS[homework_status]
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
@@ -119,6 +127,9 @@ def check_tokens():
 def main():
     """Основная логика работы бота."""
     if not check_tokens():
+        logger.critical(
+            f'Отсутствуют критически важные переменные окружения'
+        )
         exit()
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
@@ -133,17 +144,16 @@ def main():
             for homework in homeworks:
                 message = parse_status(homework)
                 send_message(bot, message)
-            time.sleep(RETRY_TIME)
 
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             if message != box_error:
                 send_message(bot, message)
                 box_error = message
-                time.sleep(RETRY_TIME)
+                time.sleep(TELEGRAM_RETRY_TIME)
         else:
             logger.info('Сообщение отправлено')
-            time.sleep(RETRY_TIME)
+            time.sleep(TELEGRAM_RETRY_TIME)
 
 
 if __name__ == '__main__':
