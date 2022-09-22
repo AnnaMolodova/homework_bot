@@ -1,17 +1,15 @@
+import json
 import logging
 import os
 import time
-
-import exceptions
-import endpoint
-import requests
-import telegram
-import json
-
-from dotenv import load_dotenv
-
 from http import HTTPStatus
 
+import requests
+import telegram
+from dotenv import load_dotenv
+
+import endpoint
+import exceptions
 
 logging.basicConfig(
     level=logging.INFO,
